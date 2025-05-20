@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Image Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .container { display: flex; flex-direction: column; gap: 20px; }
+    .image-test { border: 1px solid #ccc; padding: 10px; }
+    img { max-width: 300px; height: auto; display: block; margin-bottom: 10px; }
+    .code { background: #f5f5f5; padding: 5px; font-family: monospace; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Image Test Page</h1>
+  <p>This page tests different ways of serving the uploaded images</p>
+  
+  <div class="container">
+    <!-- Test 1: Direct URL -->
+    <div class="image-test">
+      <h3>Test 1: Direct URL</h3>
+      <div class="code">/uploads/08476ab7-5e87-4032-8156-5e25d022ae3e.jpeg</div>
+      <img src="/uploads/08476ab7-5e87-4032-8156-5e25d022ae3e.jpeg" alt="Test Image 1">
+    </div>
+    
+    <!-- Test 2: Full URL -->
+    <div class="image-test">
+      <h3>Test 2: Full URL</h3>
+      <div class="code">https://82f1ef9e-3dfe-40aa-ab35-5903d5efe220-00-2vvrroudn3maj.spock.replit.dev/uploads/08476ab7-5e87-4032-8156-5e25d022ae3e.jpeg</div>
+      <img src="https://82f1ef9e-3dfe-40aa-ab35-5903d5efe220-00-2vvrroudn3maj.spock.replit.dev/uploads/08476ab7-5e87-4032-8156-5e25d022ae3e.jpeg" alt="Test Image 2">
+    </div>
+    
+    <!-- Test 3: Another file -->
+    <div class="image-test">
+      <h3>Test 3: Another file</h3>
+      <div class="code">/uploads/3cb5ed80-0997-405f-b336-b42ed300369b.jpeg</div>
+      <img src="/uploads/3cb5ed80-0997-405f-b336-b42ed300369b.jpeg" alt="Test Image 3">
+    </div>
+    
+    <!-- Test 4: File that might not exist -->
+    <div class="image-test">
+      <h3>Test 4: File that might not exist</h3>
+      <div class="code">/uploads/nonexistent-file.jpeg</div>
+      <img src="/uploads/nonexistent-file.jpeg" alt="Test Image 4" onerror="this.onerror=null; this.src='/uploads/08476ab7-5e87-4032-8156-5e25d022ae3e.jpeg'; this.alt='Fallback image';">
+    </div>
+  </div>
+  
+  <script>
+    // Basic logging to console
+    document.querySelectorAll('img').forEach((img, index) => {
+      img.onload = () => console.log(`Image ${index + 1} loaded successfully`);
+      img.onerror = () => console.log(`Image ${index + 1} failed to load`);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Image Upload Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .container {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin-top: 0;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .status {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #dff0d8;
+      color: #3c763d;
+      border: 1px solid #d6e9c6;
+    }
+    .error {
+      background-color: #f2dede;
+      color: #a94442;
+      border: 1px solid #ebccd1;
+    }
+    .info {
+      background-color: #d9edf7;
+      color: #31708f;
+      border: 1px solid #bce8f1;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    .image-preview {
+      max-width: 300px;
+      max-height: 300px;
+      border: 1px solid #ddd;
+      padding: 5px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Project Image Upload Test</h1>
+  
+  <!-- Auth Status -->
+  <div class="container">
+    <h2>Authentication Status</h2>
+    <div id="auth-status">Checking authentication status...</div>
+    
+    <div id="login-form" style="display:none;">
+      <div class="form-group">
+        <label for="username">Username:</label>
+        <input type="text" id="username" placeholder="Enter username">
+      </div>
+      <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" placeholder="Enter password">
+      </div>
+      <button id="login-button">Log In</button>
+    </div>
+    
+    <div id="logout-section" style="display:none;">
+      <p>Logged in as: <strong id="user-info"></strong></p>
+      <button id="logout-button">Log Out</button>
+    </div>
+  </div>
+
+  <!-- Project Selection -->
+  <div class="container" id="project-selector" style="display:none;">
+    <h2>Select Project</h2>
+    <p>Choose a project to upload images to:</p>
+    <select id="project-select" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+      <option value="">Loading projects...</option>
+    </select>
+    <div id="project-details"></div>
+  </div>
+  
+  <!-- Image Upload -->
+  <div class="container" id="upload-section" style="display:none;">
+    <h2>Upload Project Image</h2>
+    <p>Select an image file to upload to the selected project:</p>
+    
+    <div class="form-group">
+      <label for="file-input">Choose Image:</label>
+      <input type="file" id="file-input" accept="image/*">
+    </div>
+    
+    <button id="upload-button" disabled>Upload Image</button>
+    
+    <div id="upload-status"></div>
+
+    <div id="preview-container" style="display:none; margin-top: 20px;">
+      <h3>Image Preview:</h3>
+      <img id="image-preview" class="image-preview">
+    </div>
+  </div>
+  
+  <!-- Response -->
+  <div class="container">
+    <h2>Response Log</h2>
+    <pre id="response-log">// Response logs will appear here</pre>
+  </div>
+
+  <script>
+    // DOM Elements
+    const authStatus = document.getElementById('auth-status');
+    const loginForm = document.getElementById('login-form');
+    const logoutSection = document.getElementById('logout-section');
+    const userInfo = document.getElementById('user-info');
+    const loginButton = document.getElementById('login-button');
+    const logoutButton = document.getElementById('logout-button');
+    const projectSelector = document.getElementById('project-selector');
+    const projectSelect = document.getElementById('project-select');
+    const projectDetails = document.getElementById('project-details');
+    const uploadSection = document.getElementById('upload-section');
+    const fileInput = document.getElementById('file-input');
+    const uploadButton = document.getElementById('upload-button');
+    const uploadStatus = document.getElementById('upload-status');
+    const previewContainer = document.getElementById('preview-container');
+    const imagePreview = document.getElementById('image-preview');
+    const responseLog = document.getElementById('response-log');
+
+    // State
+    let userData = null;
+    let selectedProject = null;
+
+    // Utility Functions
+    function logResponse(message, data = null) {
+      const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+      let logEntry = `[${timestamp}] ${message}`;
+      
+      if (data) {
+        if (typeof data === 'object') {
+          logEntry += '\n' + JSON.stringify(data, null, 2);
+        } else {
+          logEntry += '\n' + data;
+        }
+      }
+      
+      responseLog.textContent = logEntry + '\n\n' + responseLog.textContent;
+    }
+
+    function setAuthStatus(isAuthenticated, user = null) {
+      if (isAuthenticated && user) {
+        authStatus.innerHTML = `<div class="status success">✓ Authenticated</div>`;
+        userInfo.textContent = `${user.username} (${user.role})`;
+        loginForm.style.display = 'none';
+        logoutSection.style.display = 'block';
+        projectSelector.style.display = 'block';
+        uploadSection.style.display = 'block';
+        userData = user;
+        
+        // Load the user's projects
+        loadProjects();
+      } else {
+        authStatus.innerHTML = `<div class="status error">✗ Not authenticated</div>`;
+        loginForm.style.display = 'block';
+        logoutSection.style.display = 'none';
+        projectSelector.style.display = 'none';
+        uploadSection.style.display = 'none';
+        userData = null;
+      }
+    }
+
+    function showError(container, message) {
+      container.innerHTML = `<div class="status error">${message}</div>`;
+    }
+
+    function showSuccess(container, message) {
+      container.innerHTML = `<div class="status success">${message}</div>`;
+    }
+
+    function showInfo(container, message) {
+      container.innerHTML = `<div class="status info">${message}</div>`;
+    }
+
+    // API Functions
+    async function fetchWithAuth(url, options = {}) {
+      const defaultOptions = {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest', // Help server identify AJAX requests
+          'Cache-Control': 'no-cache, no-store, must-revalidate' // Prevent caching
+        }
+      };
+      
+      const mergedOptions = { ...defaultOptions, ...options };
+      
+      if (options.body && !(options.body instanceof FormData)) {
+        mergedOptions.headers['Content-Type'] = 'application/json';
+        mergedOptions.body = JSON.stringify(options.body);
+      }
+
+      try {
+        logResponse(`Fetching ${url}`, options.method || 'GET');
+        const response = await fetch(url, mergedOptions);
+        
+        // Log the full response for debugging
+        let responseText;
+        try {
+          responseText = await response.clone().text();
+          logResponse(`Response (${response.status})`, responseText);
+        } catch (e) {
+          logResponse(`Error reading response: ${e.message}`);
+        }
+        
+        if (response.status === 401) {
+          setAuthStatus(false);
+          throw new Error('Authentication required');
+        }
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${responseText || response.statusText}`);
+        }
+        
+        // Parse as JSON only if the content type is JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json();
+        }
+        
+        return responseText;
+      } catch (error) {
+        logResponse(`API Error: ${error.message}`);
+        throw error;
+      }
+    }
+
+    async function checkAuthStatus() {
+      try {
+        showInfo(authStatus, 'Checking authentication status...');
+        const user = await fetchWithAuth('/api/user');
+        if (user && user.id) {
+          logResponse('Authentication check successful', user);
+          setAuthStatus(true, user);
+          return true;
+        } else {
+          logResponse('Not authenticated');
+          setAuthStatus(false);
+          return false;
+        }
+      } catch (error) {
+        logResponse(`Authentication check failed: ${error.message}`);
+        setAuthStatus(false);
+        return false;
+      }
+    }
+
+    async function login(username, password) {
+      try {
+        showInfo(authStatus, 'Logging in...');
+        const user = await fetchWithAuth('/api/login', {
+          method: 'POST',
+          body: { username, password }
+        });
+        
+        logResponse('Login successful', user);
+        setAuthStatus(true, user);
+        return true;
+      } catch (error) {
+        showError(authStatus, `Login failed: ${error.message}`);
+        logResponse(`Login failed: ${error.message}`);
+        return false;
+      }
+    }
+
+    async function logout() {
+      try {
+        showInfo(authStatus, 'Logging out...');
+        await fetchWithAuth('/api/logout', {
+          method: 'POST'
+        });
+        
+        logResponse('Logout successful');
+        setAuthStatus(false);
+        return true;
+      } catch (error) {
+        showError(authStatus, `Logout failed: ${error.message}`);
+        logResponse(`Logout failed: ${error.message}`);
+        return false;
+      }
+    }
+
+    async function loadProjects() {
+      try {
+        showInfo(projectDetails, 'Loading projects...');
+        const projects = await fetchWithAuth('/api/projects');
+        
+        if (!projects || projects.length === 0) {
+          projectSelect.innerHTML = '<option value="">No projects found</option>';
+          showInfo(projectDetails, 'No projects available.');
+          return;
+        }
+        
+        logResponse('Projects loaded', projects);
+        
+        // Populate the select dropdown
+        projectSelect.innerHTML = '<option value="">Select a project</option>';
+        projects.forEach(project => {
+          const option = document.createElement('option');
+          option.value = project.id;
+          option.textContent = `${project.name} (ID: ${project.id})`;
+          projectSelect.appendChild(option);
+        });
+        
+        showInfo(projectDetails, `${projects.length} projects loaded. Select one to continue.`);
+      } catch (error) {
+        projectSelect.innerHTML = '<option value="">Error loading projects</option>';
+        showError(projectDetails, `Failed to load projects: ${error.message}`);
+      }
+    }
+
+    async function loadProjectDetails(projectId) {
+      try {
+        showInfo(projectDetails, 'Loading project details...');
+        const project = await fetchWithAuth(`/api/projects/${projectId}`);
+        
+        if (!project) {
+          showError(projectDetails, 'Project not found.');
+          return null;
+        }
+        
+        logResponse('Project details loaded', project);
+        
+        // Show project details
+        projectDetails.innerHTML = `
+          <div class="status info">
+            <strong>${project.name}</strong><br>
+            Status: ${project.status}<br>
+            Progress: ${project.progress}%<br>
+            Description: ${project.description || 'No description'}
+          </div>
+        `;
+        
+        return project;
+      } catch (error) {
+        showError(projectDetails, `Failed to load project details: ${error.message}`);
+        return null;
+      }
+    }
+
+    async function uploadImage(projectId, file) {
+      try {
+        showInfo(uploadStatus, 'Uploading image...');
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const result = await fetchWithAuth(`/api/projects/${projectId}/images`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        logResponse('Image upload successful', result);
+        showSuccess(uploadStatus, 'Image uploaded successfully!');
+        return result;
+      } catch (error) {
+        showError(uploadStatus, `Failed to upload image: ${error.message}`);
+        throw error;
+      }
+    }
+
+    // Event Handlers
+    loginButton.addEventListener('click', async () => {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      
+      if (!username || !password) {
+        showError(authStatus, 'Username and password are required');
+        return;
+      }
+      
+      await login(username, password);
+    });
+
+    logoutButton.addEventListener('click', async () => {
+      await logout();
+    });
+
+    projectSelect.addEventListener('change', async (e) => {
+      const projectId = e.target.value;
+      
+      if (!projectId) {
+        uploadButton.disabled = true;
+        projectDetails.innerHTML = '';
+        return;
+      }
+      
+      selectedProject = await loadProjectDetails(projectId);
+      uploadButton.disabled = !selectedProject;
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      
+      if (file) {
+        // Enable upload button if a project is selected
+        uploadButton.disabled = !selectedProject;
+        
+        // Show image preview
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          imagePreview.src = e.target.result;
+          previewContainer.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      } else {
+        uploadButton.disabled = true;
+        previewContainer.style.display = 'none';
+      }
+    });
+
+    uploadButton.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      const projectId = projectSelect.value;
+      
+      if (!file) {
+        showError(uploadStatus, 'Please select an image to upload');
+        return;
+      }
+      
+      if (!projectId) {
+        showError(uploadStatus, 'Please select a project');
+        return;
+      }
+      
+      try {
+        uploadButton.disabled = true;
+        await uploadImage(projectId, file);
+        fileInput.value = ''; // Clear the file input
+        previewContainer.style.display = 'none';
+      } catch (error) {
+        console.error('Upload failed:', error);
+      } finally {
+        uploadButton.disabled = false;
+      }
+    });
+
+    // Initialize
+    window.addEventListener('load', async () => {
+      logResponse('Page loaded, checking authentication status...');
+      await checkAuthStatus();
+    });
+  </script>
+</body>
+</html>

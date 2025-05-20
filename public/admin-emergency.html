@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Emergency Dashboard</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    header {
+      background-color: #0047AB;
+      color: white;
+      padding: 15px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    h1, h2, h3 {
+      margin: 0;
+    }
+    
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .stat-number {
+      font-size: 32px;
+      font-weight: bold;
+      color: #0047AB;
+      margin: 10px 0;
+    }
+    
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+    }
+    
+    tr:hover {
+      background-color: #f5f5f5;
+    }
+    
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .status-pending {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    
+    .status-approved {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    
+    .status-rejected {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    
+    .status-completed {
+      background-color: #cce5ff;
+      color: #004085;
+    }
+    
+    .btn {
+      background-color: #0047AB;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      text-decoration: none;
+      display: inline-block;
+    }
+    
+    .btn:hover {
+      background-color: #003380;
+    }
+    
+    .btn-secondary {
+      background-color: #6c757d;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #5a6268;
+    }
+    
+    .action-links {
+      display: flex;
+      gap: 10px;
+    }
+    
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      table {
+        font-size: 14px;
+      }
+      
+      th, td {
+        padding: 8px 10px;
+      }
+      
+      .card {
+        overflow-x: auto;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .action-links {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Admin Emergency Dashboard</h1>
+      <div>
+        <a href="/" class="btn btn-secondary">Back to Home</a>
+      </div>
+    </header>
+    
+    <div id="app">
+      <div class="dashboard-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Clients</div>
+          <div class="stat-number" id="client-count">-</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-label">Service Providers</div>
+          <div class="stat-number" id="provider-count">-</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-label">Active Projects</div>
+          <div class="stat-number" id="project-count">-</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-label">Service Requests</div>
+          <div class="stat-number" id="request-count">-</div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2>Service Requests</h2>
+        <div id="service-requests-table">
+          <p>Loading service requests...</p>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2>Active Projects</h2>
+        <div id="projects-table">
+          <p>Loading projects...</p>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2>Quick Actions</h2>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn" onclick="publishAllRequests()">Publish All Service Requests</button>
+          <button class="btn" onclick="window.location.reload()">Refresh Dashboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Hardcoded admin credentials for emergency use
+    const adminUsername = 'admin';
+    
+    // Function to approve a single service request
+    async function approveRequest(requestId) {
+      try {
+        if (!confirm(`Are you sure you want to approve service request #${requestId}?`)) {
+          return;
+        }
+        
+        const response = await fetch(`/api/direct-approve-request/${requestId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`Service request #${requestId} has been approved and published for bidding!`);
+          window.location.reload();
+        } else {
+          alert(`Failed to approve request: ${result.message}`);
+        }
+      } catch (error) {
+        console.error('Error approving request:', error);
+        alert('An error occurred while approving the request.');
+      }
+    }
+    
+    // Function to fetch data from the server
+    async function fetchAdminData(endpoint) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ adminUsername })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching ${endpoint}: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error(`Failed to fetch ${endpoint}:`, error);
+        return [];
+      }
+    }
+    
+    // Function to publish all service requests
+    async function publishAllRequests() {
+      try {
+        const response = await fetch('/api/direct-publish-all-requests');
+        const result = await response.json();
+        
+        if (result.success) {
+          alert('All service requests have been published for bidding!');
+          window.location.reload();
+        } else {
+          alert('Failed to publish service requests: ' + result.message);
+        }
+      } catch (error) {
+        console.error('Error publishing requests:', error);
+        alert('An error occurred while publishing requests.');
+      }
+    }
+    
+    // Function to format date
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString();
+    }
+    
+    // Function to get status class
+    function getStatusClass(status) {
+      status = status.toLowerCase();
+      if (status.includes('pending')) return 'status-pending';
+      if (status.includes('approved')) return 'status-approved';
+      if (status.includes('rejected')) return 'status-rejected';
+      if (status.includes('completed')) return 'status-completed';
+      return '';
+    }
+    
+    // Function to render service requests table
+    function renderServiceRequestsTable(requests, clients) {
+      if (!requests || requests.length === 0) {
+        return '<p>No service requests found.</p>';
+      }
+      
+      const clientMap = {};
+      clients.forEach(client => {
+        clientMap[client.id] = client.username || client.fullName || 'Unknown Client';
+      });
+      
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Client</th>
+              <th>Service Type</th>
+              <th>Location</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      requests.forEach(request => {
+        const clientName = clientMap[request.clientId] || 'Unknown Client';
+        const statusClass = getStatusClass(request.status);
+        const isPending = request.status.includes('pending');
+        
+        html += `
+          <tr>
+            <td>${request.id}</td>
+            <td>${clientName}</td>
+            <td>${request.serviceType}</td>
+            <td>${request.location}</td>
+            <td><span class="status ${statusClass}">${request.status.replace(/_/g, ' ')}</span></td>
+            <td>${formatDate(request.createdAt)}</td>
+            <td>
+              ${isPending ? `<button class="btn" onclick="approveRequest(${request.id})">Approve</button>` : ''}
+            </td>
+          </tr>
+        `;
+      });
+      
+      html += `
+          </tbody>
+        </table>
+      `;
+      
+      return html;
+    }
+    
+    // Function to render projects table
+    function renderProjectsTable(projects, clients) {
+      if (!projects || projects.length === 0) {
+        return '<p>No projects found.</p>';
+      }
+      
+      const clientMap = {};
+      clients.forEach(client => {
+        clientMap[client.id] = client.username || client.fullName || 'Unknown Client';
+      });
+      
+      let html = `
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Project Name</th>
+              <th>Client</th>
+              <th>Location</th>
+              <th>Status</th>
+              <th>Budget</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      projects.forEach(project => {
+        const clientName = clientMap[project.clientId] || 'Unknown Client';
+        const statusClass = getStatusClass(project.status);
+        const budget = project.budget ? `₵${project.budget.toLocaleString()}` : 'N/A';
+        
+        html += `
+          <tr>
+            <td>${project.id}</td>
+            <td>${project.name || 'Unnamed Project'}</td>
+            <td>${clientName}</td>
+            <td>${project.location || 'N/A'}</td>
+            <td><span class="status ${statusClass}">${project.status}</span></td>
+            <td>${budget}</td>
+          </tr>
+        `;
+      });
+      
+      html += `
+          </tbody>
+        </table>
+      `;
+      
+      return html;
+    }
+    
+    // Load data when page loads
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        // Fetch all data in parallel
+        const [clients, serviceProviders, projects, serviceRequests] = await Promise.all([
+          fetchAdminData('/api/direct-admin-clients'),
+          fetchAdminData('/api/direct-admin-service-providers'),
+          fetchAdminData('/api/direct-admin-projects'),
+          fetchAdminData('/api/direct-admin-service-requests')
+        ]);
+        
+        // Update counts
+        document.getElementById('client-count').textContent = clients.length;
+        document.getElementById('provider-count').textContent = serviceProviders.length;
+        document.getElementById('project-count').textContent = projects.filter(p => p.status === 'in_progress').length;
+        document.getElementById('request-count').textContent = serviceRequests.length;
+        
+        // Render tables
+        document.getElementById('service-requests-table').innerHTML = renderServiceRequestsTable(serviceRequests, clients);
+        document.getElementById('projects-table').innerHTML = renderProjectsTable(projects, clients);
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        document.getElementById('app').innerHTML = `
+          <div class="card">
+            <h2>Error Loading Dashboard</h2>
+            <p>There was a problem loading the dashboard data. Please try refreshing the page or contact technical support.</p>
+            <p>Error: ${error.message}</p>
+            <button class="btn" onclick="window.location.reload()">Refresh Page</button>
+          </div>
+        `;
+      }
+    });
+  </script>
+</body>
+</html>

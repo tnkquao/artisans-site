@@ -1,0 +1,928 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import AdminDashboardLayout from "@/components/layouts/admin-dashboard-layout";
+import { useToast } from "@/hooks/use-toast";
+import { Link, useLocation } from "wouter";
+import { 
+  UsersRound, 
+  Building2, 
+  ClipboardCheck, 
+  Clock, 
+  UserCog,
+  Search,
+  Megaphone,
+  Plus
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Project, User, ServiceRequest } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Input } from "@/components/ui/input";
+import { 
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell 
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+
+// Import direct admin components and hooks
+import DirectAdminLogin from "@/components/admin/direct-admin-login";
+import { DirectAdminAuthProvider, useDirectAdminAuth } from "@/hooks/use-direct-admin-auth";
+import { DirectAdminNotificationsProvider } from "@/providers/direct-admin-notifications-provider";
+
+function AdminDashboardContent() {
+  // Define all hooks first, before any conditional logic
+  const { adminUser, isLoading, logout } = useDirectAdminAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Define all query hooks upfront, but with enabled: false initially
+  // This avoids the React hooks order error
+  const { 
+    data: serviceRequests, 
+    isLoading: isLoadingRequests 
+  } = useQuery<ServiceRequest[]>({
+    queryKey: ["/api/direct-admin/service-requests"],
+    queryFn: async () => {
+      if (!adminUser) return [];
+      const response = await fetch('/api/direct-admin-service-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUsername: adminUser.username })
+      });
+      if (!response.ok) throw new Error('Failed to fetch service requests');
+      return response.json();
+    },
+    staleTime: 30000,
+    enabled: !!adminUser && adminUser.role === 'admin',
+  });
+
+  const { 
+    data: clients, 
+    isLoading: isLoadingClients 
+  } = useQuery<User[]>({
+    queryKey: ["/api/direct-admin/clients"],
+    queryFn: async () => {
+      if (!adminUser) return [];
+      const response = await fetch('/api/direct-admin-clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUsername: adminUser.username })
+      });
+      if (!response.ok) throw new Error('Failed to fetch clients');
+      return response.json();
+    },
+    staleTime: 60000,
+    enabled: !!adminUser && adminUser.role === 'admin',
+  });
+
+  const { 
+    data: serviceProviders, 
+    isLoading: isLoadingProviders 
+  } = useQuery<User[]>({
+    queryKey: ["/api/direct-admin/service-providers"],
+    queryFn: async () => {
+      if (!adminUser) return [];
+      const response = await fetch('/api/direct-admin-service-providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUsername: adminUser.username })
+      });
+      if (!response.ok) throw new Error('Failed to fetch service providers');
+      return response.json();
+    },
+    staleTime: 60000,
+    enabled: !!adminUser && adminUser.role === 'admin',
+  });
+
+  const { 
+    data: projects, 
+    isLoading: isLoadingProjects 
+  } = useQuery<Project[]>({
+    queryKey: ["/api/direct-admin/projects"],
+    queryFn: async () => {
+      if (!adminUser) return [];
+      const response = await fetch('/api/direct-admin-projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUsername: adminUser.username })
+      });
+      if (!response.ok) throw new Error('Failed to fetch projects');
+      return response.json();
+    },
+    staleTime: 60000,
+    enabled: !!adminUser && adminUser.role === 'admin',
+  });
+  
+  // Show loading state during initial auth check
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+  
+  // If not authenticated or not admin, show direct login form
+  if (!adminUser || adminUser.role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
+        <h1 className="text-2xl font-bold mb-6 text-primary">Admin Access Required</h1>
+        <DirectAdminLogin />
+      </div>
+    );
+  }
+  
+  // We already defined all data queries at the top of the component
+  
+  // Get stats for dashboard with null safety
+  const stats = [
+    { 
+      title: "Total Clients", 
+      value: clients?.length || 0,
+      icon: <UsersRound className="text-primary" />,
+      bgColor: "bg-primary-100"
+    },
+    { 
+      title: "Service Providers", 
+      value: serviceProviders?.length || 0,
+      icon: <UserCog className="text-secondary" />,
+      bgColor: "bg-orange-100"
+    },
+    { 
+      title: "Active Projects", 
+      value: projects ? projects.filter(p => p.status === "in_progress").length : 0,
+      icon: <Building2 className="text-green-500" />,
+      bgColor: "bg-green-100"
+    },
+    { 
+      title: "Pending Requests", 
+      value: serviceRequests ? serviceRequests.filter(sr => sr.status === "pending" || sr.status === "pending_admin").length : 0,
+      icon: <Clock className="text-purple-500" />,
+      bgColor: "bg-purple-100"
+    }
+  ];
+
+  // Filter and search service requests with null safety
+  const filteredRequests = serviceRequests 
+    ? serviceRequests
+        .filter(request => filterStatus === 'all' || request.status === filterStatus)
+        .filter(request => {
+          if (!searchQuery) return true;
+          const query = searchQuery.toLowerCase();
+          return (
+            request.serviceType.toLowerCase().includes(query) ||
+            request.requestType.toLowerCase().includes(query) ||
+            request.description.toLowerCase().includes(query) ||
+            request.location.toLowerCase().includes(query)
+          );
+        })
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    : [];
+
+  // Find client name by ID with null safety
+  const getClientName = (clientId: number) => {
+    if (!clients) return 'Unknown Client';
+    const client = clients.find(c => c.id === clientId);
+    return client ? (client.fullName || client.username || 'Unknown Client') : 'Unknown Client';
+  };
+
+  // Handle service request status update
+  const handleStatusUpdate = async (requestId: number, newStatus: string, adminNotes?: string) => {
+    try {
+      const updateData: { status: string; adminNotes?: string } = { status: newStatus };
+      
+      // If admin notes are provided, include them in the update
+      if (adminNotes) {
+        updateData.adminNotes = adminNotes;
+      }
+      
+      const response = await apiRequest("PATCH", `/api/service-requests/${requestId}`, updateData);
+      
+      if (response.ok) {
+        // Update the cache with the new status
+        queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
+        
+        toast({
+          title: "Service request updated",
+          description: `Request status has been changed to ${newStatus.replace("_", " ")}.`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to update request status:", error);
+      
+      toast({
+        title: "Update failed",
+        description: "Failed to update service request status. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Handle publishing a service request to make it visible to service providers
+  const handlePublishRequest = async (requestId: number) => {
+    try {
+      const response = await apiRequest("PATCH", `/api/service-requests/${requestId}`, {
+        status: "published"
+      });
+      
+      if (response.ok) {
+        queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
+        
+        toast({
+          title: "Request published",
+          description: "The service request is now visible to service providers for bidding.",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to publish request:", error);
+      
+      toast({
+        title: "Publication failed",
+        description: "Failed to publish service request. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Handle publishing all service requests for bidding
+  const handlePublishAllRequests = async () => {
+    if (!serviceRequests || serviceRequests.length === 0) {
+      toast({
+        title: "No requests available",
+        description: "There are no service requests to publish at this time.",
+      });
+      return;
+    }
+    
+    try {
+      // Filter requests that aren't already published or completed
+      const requestsToPublish = serviceRequests.filter(
+        req => req.status !== "published" && 
+              req.status !== "completed" && 
+              req.status !== "in_progress"
+      );
+      
+      if (requestsToPublish.length === 0) {
+        toast({
+          title: "Nothing to publish",
+          description: "All eligible service requests are already published or completed.",
+        });
+        return;
+      }
+      
+      // Show confirmation toast
+      toast({
+        title: "Publishing requests",
+        description: `Publishing ${requestsToPublish.length} service requests for bidding...`,
+      });
+      
+      // Use batch update API endpoint to publish all requests that aren't already published
+      const response = await apiRequest("POST", `/api/service-requests/publish-all`, {
+        requestIds: requestsToPublish.map(req => req.id)
+      });
+      
+      if (response.ok) {
+        // Parse the response to show more detailed information
+        const result = await response.json();
+        
+        // Invalidate the service requests to refresh the data
+        queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
+        
+        toast({
+          title: "Service Requests Published",
+          description: `Successfully published ${result.published} requests. ${result.skipped} skipped. ${result.errors} failed.`,
+        });
+      } else {
+        throw new Error("Failed to publish requests");
+      }
+    } catch (error) {
+      console.error("Failed to publish all requests:", error);
+      
+      toast({
+        title: "Publication failed",
+        description: "Failed to publish service requests. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Handle project status update
+  const handleProjectStatusUpdate = async (projectId: number, newStatus: string) => {
+    try {
+      const response = await apiRequest("PATCH", `/api/projects/${projectId}`, {
+        status: newStatus
+      });
+      
+      if (response.ok) {
+        // Update the cache with the new status
+        queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+        
+        toast({
+          title: "Project updated",
+          description: `Project status has been changed to ${newStatus.replace("_", " ")}.`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to update project status:", error);
+      
+      toast({
+        title: "Update failed",
+        description: "Failed to update project status. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Handle assigning a service provider
+  const handleAssignProvider = async (requestId: number, providerId: string) => {
+    try {
+      // If "unassigned" is selected, set it to null
+      const providerIdValue = providerId === "unassigned" ? null : Number(providerId);
+      
+      const response = await apiRequest("PATCH", `/api/service-requests/${requestId}`, {
+        assignedServiceProviderId: providerIdValue
+      });
+      
+      if (response.ok) {
+        // Update the cache with the new assignment
+        queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
+        
+        toast({
+          title: providerId === "unassigned" ? "Provider unassigned" : "Provider assigned",
+          description: providerId === "unassigned" 
+            ? "Service provider has been removed from this request." 
+            : "Service provider has been assigned to this request.",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to assign provider:", error);
+      
+      toast({
+        title: "Assignment failed",
+        description: "Failed to assign service provider. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getStatusBadgeStyles = (status: string) => {
+    switch (status) {
+      case 'pending':
+      case 'pending_admin':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'approved':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'published':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'in_progress':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-300';
+      case 'completed':
+        return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'rejected':
+        return 'bg-red-100 text-red-800 border-red-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  // Authentication check was performed earlier in the component
+
+  return (
+    <AdminDashboardLayout title="Admin Dashboard">
+      {/* Dashboard Content */}
+      {/* Dashboard Content Section */}
+
+      {/* Dashboard Stats */}
+      <section className="mb-6">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {stats.map((stat, i) => (
+              <div key={i} className="bg-white border border-gray-100 rounded-lg shadow-sm p-5 transition-all hover:shadow-md">
+                <div className="flex items-center">
+                  <div className={`flex items-center justify-center rounded-md ${stat.bgColor} h-12 w-12 mr-4`}>
+                    {stat.icon}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">{stat.title}</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Service Requests Management */}
+      <section className="mb-8">
+        <div className="container mx-auto px-4">
+          <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
+            <div className="border-b border-gray-100 bg-gray-50 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Service Requests</h3>
+                  <p className="text-sm text-gray-500 mt-1">Manage and track service requests from clients</p>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <Button 
+                    onClick={() => handlePublishAllRequests()}
+                    className="bg-primary hover:bg-primary/90 text-white font-medium w-full sm:w-auto"
+                  >
+                    <Megaphone className="mr-2 h-4 w-4" />
+                    Publish All
+                  </Button>
+                  
+                  <Link href="/service-requests/new">
+                    <Button variant="outline" className="w-full sm:w-auto">
+                      <Plus className="mr-2 h-4 w-4" />
+                      New Request
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 sm:p-6 border-b border-gray-100">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-grow">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by client, location, or service type..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 border-gray-200 rounded-md w-full"
+                  />
+                </div>
+                
+                <div className="sm:w-40">
+                  <Select
+                    value={filterStatus}
+                    onValueChange={(value) => setFilterStatus(value)}
+                  >
+                    <SelectTrigger className="border-gray-200 w-full">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="pending_admin">Pending Review</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="published">Published</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4">
+              {isLoadingRequests ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                </div>
+              ) : filteredRequests.length > 0 ? (
+                <>
+                  {/* Mobile card view for small screens */}
+                  <div className="md:hidden space-y-4 p-2">
+                    {filteredRequests.slice(0, 4).map((request) => (
+                      <div key={request.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className="text-sm text-gray-500">Client:</span>
+                            <h4 className="font-semibold">{getClientName(request.clientId)}</h4>
+                          </div>
+                          <Badge className={`${getStatusBadgeStyles(request.status)} capitalize`}>
+                            {request.status.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+                          <div>
+                            <span className="text-gray-500 block">Service:</span>
+                            <Badge variant="outline" className="capitalize mt-1">
+                              {request.serviceType}
+                            </Badge>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block">Type:</span>
+                            <span>{request.requestType}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="mb-4 text-sm">
+                          <span className="text-gray-500 block">Location:</span>
+                          <span className="truncate block">{request.location}</span>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Select
+                            value={request.status}
+                            onValueChange={(value) => handleStatusUpdate(request.id, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Update Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending_admin">Pending Review</SelectItem>
+                              <SelectItem value="approved">Approve</SelectItem>
+                              <SelectItem value="published">Publish</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="completed">Complete</SelectItem>
+                              <SelectItem value="rejected">Reject</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          
+                          <div className="flex gap-2">
+                            <Link href={`/service-requests/${request.id}`} className="flex-1">
+                              <Button size="sm" variant="outline" className="w-full">View</Button>
+                            </Link>
+                            {request.status === "pending_admin" && (
+                              <Button 
+                                size="sm" 
+                                className="flex-1 bg-green-600 hover:bg-green-700"
+                                onClick={() => handlePublishRequest(request.id)}
+                              >
+                                Publish
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {filteredRequests.length > 4 && (
+                      <div className="mt-4 flex justify-center">
+                        <Link href="/service-requests">
+                          <Button variant="outline" size="sm">View All Requests</Button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Desktop table view for medium screens and up */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="whitespace-nowrap">Client</TableHead>
+                          <TableHead className="whitespace-nowrap">Service Type</TableHead>
+                          <TableHead className="whitespace-nowrap hidden lg:table-cell">Request Type</TableHead>
+                          <TableHead className="whitespace-nowrap hidden lg:table-cell">Location</TableHead>
+                          <TableHead className="whitespace-nowrap">Status</TableHead>
+                          <TableHead className="whitespace-nowrap">Assigned To</TableHead>
+                          <TableHead className="whitespace-nowrap">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredRequests.slice(0, 6).map((request) => (
+                          <TableRow key={request.id}>
+                            <TableCell className="font-medium">
+                              {getClientName(request.clientId)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize">
+                                {request.serviceType}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">{request.requestType}</TableCell>
+                            <TableCell className="max-w-[150px] truncate hidden lg:table-cell">
+                              {request.location}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={`${getStatusBadgeStyles(request.status)} capitalize`}>
+                                {request.status.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={request.assignedServiceProviderId?.toString() || ""}
+                                onValueChange={(value) => handleAssignProvider(request.id, Number(value))}
+                              >
+                                <SelectTrigger className="w-40">
+                                  <SelectValue placeholder="Assign provider" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                                  {serviceProviders ? serviceProviders
+                                    .filter(provider => 
+                                      provider.serviceType === request.serviceType ||
+                                      !provider.serviceType // Include providers without specific type
+                                    )
+                                    .map(provider => (
+                                      <SelectItem key={provider.id} value={provider.id.toString()}>
+                                        {provider.fullName || provider.username}
+                                      </SelectItem>
+                                    )) : null
+                                  }
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Select
+                                  value={request.status}
+                                  onValueChange={(value) => handleStatusUpdate(request.id, value)}
+                                >
+                                  <SelectTrigger className="w-32">
+                                    <SelectValue placeholder="Update" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending_admin">Pending Review</SelectItem>
+                                    <SelectItem value="approved">Approve</SelectItem>
+                                    <SelectItem value="published">Publish</SelectItem>
+                                    <SelectItem value="in_progress">In Progress</SelectItem>
+                                    <SelectItem value="completed">Complete</SelectItem>
+                                    <SelectItem value="rejected">Reject</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Link href={`/service-requests/${request.id}`}>
+                                  <Button size="sm" variant="outline">View</Button>
+                                </Link>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    
+                    {filteredRequests.length > 6 && (
+                      <div className="mt-4 flex justify-center pb-4">
+                        <Link href="/service-requests">
+                          <Button variant="outline">View All Requests</Button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <ClipboardCheck className="mx-auto h-12 w-12 text-gray-400 mb-3" />
+                  <p>No service requests found.</p>
+                  {searchQuery && <p className="mt-2">Try adjusting your search or filters.</p>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Service Providers & Clients */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-8">
+        {/* Service Providers */}
+        <Card className="bg-white border border-gray-200">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Service Providers</h3>
+              <Link href="/providers">
+                <Button variant="ghost" size="sm">View All</Button>
+              </Link>
+            </div>
+            
+            {isLoadingProviders ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin w-6 h-6 border-4 border-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : serviceProviders && serviceProviders.length > 0 ? (
+              <div className="space-y-3">
+                {serviceProviders.slice(0, 4).map((provider) => (
+                  <div key={provider.id} className="flex items-center justify-between border-b pb-3">
+                    <div className="flex items-center min-w-0"> {/* min-w-0 allows truncation to work properly */}
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center">
+                        <UserCog className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
+                      </div>
+                      <div className="ml-2 sm:ml-3 min-w-0">
+                        <p className="font-medium text-sm sm:text-base truncate max-w-[150px] sm:max-w-[200px]">{provider.fullName}</p>
+                        <p className="text-xs sm:text-sm text-gray-500 capitalize truncate max-w-[150px] sm:max-w-[200px]">
+                          {provider.serviceType || 'General Provider'}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className={`text-xs py-0.5 px-2 ${provider.verificationStatus === 'verified' ? 
+                      'bg-green-100 text-green-800' : 
+                      'bg-yellow-100 text-yellow-800'}`}>
+                      {provider.verificationStatus || 'pending'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center py-4 text-gray-500 text-sm">No service providers registered</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Clients */}
+        <Card className="bg-white border border-gray-200">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Active Clients</h3>
+              <Link href="/clients">
+                <Button variant="ghost" size="sm">View All</Button>
+              </Link>
+            </div>
+            
+            {isLoadingClients ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin w-6 h-6 border-4 border-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : clients && clients.length > 0 ? (
+              <div className="space-y-3">
+                {clients.slice(0, 4).map((client) => (
+                  <div key={client.id} className="flex items-center justify-between border-b pb-3">
+                    <div className="flex items-center min-w-0"> {/* min-w-0 allows truncation to work properly */}
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center">
+                        <UsersRound className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
+                      </div>
+                      <div className="ml-2 sm:ml-3 min-w-0">
+                        <p className="font-medium text-sm sm:text-base truncate max-w-[150px] sm:max-w-[200px]">{client.fullName || client.username}</p>
+                        <p className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-[200px]">
+                          {client.email || 'No email'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-xs sm:text-sm text-gray-500 flex-shrink-0">
+                      {/* Count how many active projects the client has (with null safety) */}
+                      <span className="bg-blue-100 text-blue-800 text-xs py-1 px-2 rounded-md">
+                        {projects ? projects.filter(p => p.clientId === client.id && p.status === 'in_progress').length : 0} 
+                        <span className="hidden xs:inline"> active</span> projects
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center py-4 text-gray-500 text-sm">No clients registered</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Projects Section */}
+      <section className="mb-8">
+        <Card className="bg-white border border-gray-200">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800">Active Projects</h3>
+              <Link href="/projects">
+                <Button variant="ghost" size="sm">View All Projects</Button>
+              </Link>
+            </div>
+            
+            {isLoadingProjects ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : projects && projects.filter(p => p.status === 'in_progress').length > 0 ? (
+              <>
+                {/* Mobile project cards */}
+                <div className="md:hidden space-y-4">
+                  {projects && projects.filter(p => p.status === 'in_progress').slice(0, 3).map((project) => (
+                    <div key={project.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                      <div className="mb-2">
+                        <h4 className="font-medium text-base">{project.name}</h4>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-xs text-gray-500">{getClientName(project.clientId)}</span>
+                          <Badge className={`${getStatusBadgeStyles(project.status)} text-xs`}>
+                            {project.status.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      <div className="mb-3 text-sm">
+                        <div className="text-xs text-gray-500 mb-0.5">Location:</div>
+                        <div className="truncate text-xs">{project.location}</div>
+                      </div>
+                      
+                      <div className="text-xs text-gray-500 flex justify-between items-center mb-3">
+                        <span>Updated: {new Date(project.createdAt || new Date()).toLocaleDateString()}</span>
+                        <span>Progress: {project.progress || 0}%</span>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2">
+                        <Select
+                          value={project.status}
+                          onValueChange={(value) => handleProjectStatusUpdate(project.id, value)}
+                        >
+                          <SelectTrigger className="w-full text-xs h-8">
+                            <SelectValue placeholder="Update status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="planning">Planning</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="on_hold">On Hold</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        
+                        <Link href={`/projects/${project.id}`} className="w-full">
+                          <Button size="sm" variant="outline" className="w-full text-xs">View Project</Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Desktop project table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Project</TableHead>
+                        <TableHead>Client</TableHead>
+                        <TableHead className="hidden lg:table-cell">Location</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="hidden lg:table-cell">Last Updated</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {projects && projects.filter(p => p.status === 'in_progress').slice(0, 5).map((project) => (
+                        <TableRow key={project.id}>
+                          <TableCell className="font-medium">{project.name}</TableCell>
+                          <TableCell>{getClientName(project.clientId)}</TableCell>
+                          <TableCell className="hidden lg:table-cell max-w-[150px] truncate">{project.location}</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusBadgeStyles(project.status)}>
+                              {project.status.replace('_', ' ')}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            {new Date(project.createdAt || new Date()).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Select
+                                value={project.status}
+                                onValueChange={(value) => handleProjectStatusUpdate(project.id, value)}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue placeholder="Update" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="planning">Planning</SelectItem>
+                                  <SelectItem value="in_progress">In Progress</SelectItem>
+                                  <SelectItem value="on_hold">On Hold</SelectItem>
+                                  <SelectItem value="completed">Completed</SelectItem>
+                                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Link href={`/projects/${project.id}`}>
+                                <Button size="sm" variant="outline">View</Button>
+                              </Link>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* "View All" link */}
+                {projects.filter(p => p.status === 'in_progress').length > (window.innerWidth >= 768 ? 5 : 3) && (
+                  <div className="mt-4 flex justify-center">
+                    <Link href="/projects">
+                      <Button variant="outline" size="sm">View All Active Projects</Button>
+                    </Link>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-6 text-gray-500">
+                <Building2 className="mx-auto h-10 w-10 text-gray-400 mb-2" />
+                <p>No active projects found</p>
+                <p className="text-sm mt-1">All projects will appear here when started</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+    </AdminDashboardLayout>
+  );
+}
+
+// Export wrapped component with all necessary providers
+export default function AdminDashboardPage() {
+  return (
+    <DirectAdminAuthProvider>
+      <DirectAdminNotificationsProvider>
+        <AdminDashboardContent />
+      </DirectAdminNotificationsProvider>
+    </DirectAdminAuthProvider>
+  );
+}

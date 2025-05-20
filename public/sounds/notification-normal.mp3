@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This is a placeholder file for the sound effect. In a real implementation, this would be an actual MP3 audio file. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <rect width="100" height="100" fill="#007AFF" />
+  <text x="50" y="50" font-family="Arial" font-size="10" text-anchor="middle" fill="#FFFFFF">Normal Notification Sound</text>
+</svg>

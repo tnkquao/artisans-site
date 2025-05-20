@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Upload Testing</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .container {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    h1, h2 {
+      margin-top: 0;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .status {
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #dff0d8;
+      color: #3c763d;
+      border: 1px solid #d6e9c6;
+    }
+    .error {
+      background-color: #f2dede;
+      color: #a94442;
+      border: 1px solid #ebccd1;
+    }
+    .info {
+      background-color: #d9edf7;
+      color: #31708f;
+      border: 1px solid #bce8f1;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    .auth-info {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .auth-status {
+      margin-left: auto;
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .auth-status.authenticated {
+      background-color: #dff0d8;
+      color: #3c763d;
+    }
+    .auth-status.not-authenticated {
+      background-color: #f2dede;
+      color: #a94442;
+    }
+    .nav-tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 15px;
+    }
+    .nav-tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      margin-bottom: -1px;
+      border-radius: 4px 4px 0 0;
+    }
+    .nav-tab:hover {
+      background-color: #f8f8f8;
+    }
+    .nav-tab.active {
+      border: 1px solid #ddd;
+      border-bottom-color: #fff;
+      background-color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>File Upload Testing</h1>
+  
+  <!-- Authentication Info -->
+  <div class="auth-info">
+    <div>
+      <b>Current Session:</b> <span id="user-info">Checking...</span>
+    </div>
+    <div id="auth-status" class="auth-status">Checking...</div>
+  </div>
+  
+  <!-- Authentication Controls -->
+  <div class="container">
+    <h2>Authentication</h2>
+    
+    <div id="login-form" style="display:none;">
+      <div class="form-group">
+        <label for="username">Username:</label>
+        <input type="text" id="username" value="client1" placeholder="Enter username">
+      </div>
+      <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" value="password" placeholder="Enter password">
+      </div>
+      <button id="login-button">Log In</button>
+    </div>
+    
+    <div id="logout-section" style="display:none;">
+      <p>Logged in as: <strong id="logged-in-user"></strong></p>
+      <button id="logout-button">Log Out</button>
+    </div>
+  </div>
+  
+  <!-- Navigation Tabs -->
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-tab="test-upload">Test Upload (No Auth)</div>
+    <div class="nav-tab" data-tab="project-upload">Project Image Upload (Auth Required)</div>
+  </div>
+  
+  <!-- Test Upload (No Auth) -->
+  <div id="test-upload" class="tab-content active container">
+    <h2>Test Upload (No Authentication Required)</h2>
+    <p>This endpoint doesn't require authentication and lets you test the basic upload functionality:</p>
+    
+    <div class="form-group">
+      <label for="test-file">Choose a file:</label>
+      <input type="file" id="test-file">
+    </div>
+    
+    <button id="upload-test-file">Upload Test File</button>
+    
+    <div id="test-upload-response"></div>
+  </div>
+  
+  <!-- Project Image Upload (Auth Required) -->
+  <div id="project-upload" class="tab-content container">
+    <h2>Project Image Upload (Authentication Required)</h2>
+    <p>This endpoint requires authentication and uploads an image to a specific project:</p>
+    
+    <div class="form-group">
+      <label for="project-id">Project ID:</label>
+      <input type="text" id="project-id" value="3" placeholder="Enter project ID">
+    </div>
+    
+    <div class="form-group">
+      <label for="project-image">Choose an image:</label>
+      <input type="file" id="project-image" accept="image/*">
+    </div>
+    
+    <button id="upload-project-image">Upload Project Image</button>
+    
+    <div id="project-upload-response"></div>
+  </div>
+  
+  <!-- Response -->
+  <div class="container">
+    <h2>Response:</h2>
+    <pre id="response"></pre>
+  </div>
+  
+  <script>
+    // DOM Elements
+    const userInfo = document.getElementById('user-info');
+    const authStatus = document.getElementById('auth-status');
+    const loginForm = document.getElementById('login-form');
+    const logoutSection = document.getElementById('logout-section');
+    const loggedInUser = document.getElementById('logged-in-user');
+    const loginButton = document.getElementById('login-button');
+    const logoutButton = document.getElementById('logout-button');
+    const tabs = document.querySelectorAll('.nav-tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const testFileInput = document.getElementById('test-file');
+    const uploadTestFileButton = document.getElementById('upload-test-file');
+    const testUploadResponse = document.getElementById('test-upload-response');
+    const projectIdInput = document.getElementById('project-id');
+    const projectImageInput = document.getElementById('project-image');
+    const uploadProjectImageButton = document.getElementById('upload-project-image');
+    const projectUploadResponse = document.getElementById('project-upload-response');
+    const responseOutput = document.getElementById('response');
+    
+    // Functions
+    function logResponse(message, data = null) {
+      const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+      let logEntry = `[${timestamp}] ${message}`;
+      
+      if (data) {
+        if (typeof data === 'object') {
+          logEntry += '\n' + JSON.stringify(data, null, 2);
+        } else {
+          logEntry += '\n' + data;
+        }
+      }
+      
+      responseOutput.textContent = logEntry + '\n\n' + responseOutput.textContent;
+    }
+    
+    function setAuthStatusUI(isAuthenticated, user = null) {
+      if (isAuthenticated && user) {
+        // Update UI for authenticated state
+        authStatus.textContent = '✓ Authenticated';
+        authStatus.className = 'auth-status authenticated';
+        userInfo.textContent = `${user.username} (${user.role})`;
+        loggedInUser.textContent = `${user.username} (${user.role})`;
+        loginForm.style.display = 'none';
+        logoutSection.style.display = 'block';
+      } else {
+        // Update UI for unauthenticated state
+        authStatus.textContent = '✗ Not authenticated';
+        authStatus.className = 'auth-status not-authenticated';
+        userInfo.textContent = 'Not logged in';
+        loginForm.style.display = 'block';
+        logoutSection.style.display = 'none';
+      }
+    }
+    
+    function showMessage(element, message, type = 'info') {
+      element.innerHTML = `<div class="status ${type}">${message}</div>`;
+    }
+    
+    async function fetchJSON(url, options = {}) {
+      try {
+        // Always include credentials for cookies
+        const fetchOptions = {
+          ...options,
+          credentials: 'include',
+          headers: {
+            ...options.headers,
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'X-Requested-With': 'XMLHttpRequest' // Help server identify AJAX requests
+          }
+        };
+        
+        // If there's a body and it's not FormData, stringify it and set Content-Type
+        if (options.body && !(options.body instanceof FormData)) {
+          fetchOptions.headers['Content-Type'] = 'application/json';
+          fetchOptions.body = JSON.stringify(options.body);
+        }
+        
+        const response = await fetch(url, fetchOptions);
+        
+        // If we got a 401, immediately update the auth status
+        if (response.status === 401) {
+          setAuthStatusUI(false);
+        }
+        
+        // Get the response text for logging
+        const responseText = await response.clone().text();
+        
+        // Log the response
+        logResponse(`Response (${response.status})`, responseText);
+        
+        // For error responses, throw an error with the response body
+        if (!response.ok) {
+          throw new Error(`${response.status}: ${responseText}`);
+        }
+        
+        // Try to parse as JSON if Content-Type is application/json
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json();
+        }
+        
+        // Return the text otherwise
+        return responseText;
+      } catch (error) {
+        logResponse(`Fetch Error: ${error.message}`);
+        throw error;
+      }
+    }
+    
+    async function checkAuth() {
+      try {
+        showMessage(userInfo, 'Checking...', 'info');
+        const user = await fetchJSON('/api/user');
+        
+        if (user && user.id) {
+          logResponse('Authentication check successful', user);
+          setAuthStatusUI(true, user);
+          return true;
+        } else {
+          logResponse('Not authenticated');
+          setAuthStatusUI(false);
+          return false;
+        }
+      } catch (error) {
+        logResponse(`Authentication check failed: ${error.message}`);
+        setAuthStatusUI(false);
+        return false;
+      }
+    }
+    
+    async function login(username, password) {
+      try {
+        showMessage(userInfo, 'Logging in...', 'info');
+        const user = await fetchJSON('/api/login', {
+          method: 'POST',
+          body: { username, password }
+        });
+        
+        logResponse('Login successful', user);
+        setAuthStatusUI(true, user);
+        return true;
+      } catch (error) {
+        showMessage(userInfo, `Login failed: ${error.message}`, 'error');
+        logResponse(`Login failed: ${error.message}`);
+        setAuthStatusUI(false);
+        return false;
+      }
+    }
+    
+    async function logout() {
+      try {
+        showMessage(userInfo, 'Logging out...', 'info');
+        await fetchJSON('/api/logout', {
+          method: 'POST'
+        });
+        
+        logResponse('Logout successful');
+        setAuthStatusUI(false);
+        return true;
+      } catch (error) {
+        showMessage(userInfo, `Logout failed: ${error.message}`, 'error');
+        logResponse(`Logout failed: ${error.message}`);
+        return false;
+      }
+    }
+    
+    async function uploadTestFile(file) {
+      try {
+        showMessage(testUploadResponse, 'Uploading file...', 'info');
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const result = await fetchJSON('/api/test-upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        logResponse('Test upload successful', result);
+        showMessage(testUploadResponse, 'File uploaded successfully!', 'success');
+        
+        // Add link to view the uploaded file
+        if (result.fileDetails && result.fileDetails.url) {
+          const viewLink = document.createElement('div');
+          viewLink.className = 'view-link';
+          viewLink.innerHTML = `<a href="${result.fileDetails.url}" target="_blank">View Uploaded File</a>`;
+          testUploadResponse.appendChild(viewLink);
+        }
+        
+        return result;
+      } catch (error) {
+        showMessage(testUploadResponse, `Upload failed: ${error.message}`, 'error');
+        logResponse(`Test upload failed: ${error.message}`);
+        throw error;
+      }
+    }
+    
+    async function uploadProjectImage(projectId, file) {
+      try {
+        showMessage(projectUploadResponse, 'Uploading project image...', 'info');
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const result = await fetchJSON(`/api/projects/${projectId}/images`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        logResponse('Project image upload successful', result);
+        showMessage(projectUploadResponse, 'Project image uploaded successfully!', 'success');
+        
+        // Add link to view the uploaded image
+        if (result.imageDetails && result.imageDetails.url) {
+          const viewLink = document.createElement('div');
+          viewLink.className = 'view-link';
+          viewLink.innerHTML = `<a href="${result.imageDetails.url}" target="_blank">View Uploaded Image</a>`;
+          projectUploadResponse.appendChild(viewLink);
+        }
+        
+        return result;
+      } catch (error) {
+        showMessage(projectUploadResponse, `Upload failed: ${error.message}`, 'error');
+        logResponse(`Project image upload failed: ${error.message}`);
+        throw error;
+      }
+    }
+    
+    // Event Listeners
+    tabs.forEach(tab => {
+      tab.addEventListener('click', function() {
+        // Remove active class from all tabs
+        tabs.forEach(t => t.classList.remove('active'));
+        // Add active class to the clicked tab
+        this.classList.add('active');
+        
+        // Hide all tab contents
+        tabContents.forEach(content => content.classList.remove('active'));
+        // Show the corresponding tab content
+        const tabId = this.getAttribute('data-tab');
+        document.getElementById(tabId).classList.add('active');
+      });
+    });
+    
+    loginButton.addEventListener('click', async () => {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      
+      if (!username || !password) {
+        showMessage(userInfo, 'Username and password are required', 'error');
+        return;
+      }
+      
+      await login(username, password);
+    });
+    
+    logoutButton.addEventListener('click', async () => {
+      await logout();
+    });
+    
+    uploadTestFileButton.addEventListener('click', async () => {
+      const file = testFileInput.files[0];
+      
+      if (!file) {
+        showMessage(testUploadResponse, 'Please select a file to upload', 'error');
+        return;
+      }
+      
+      await uploadTestFile(file);
+    });
+    
+    uploadProjectImageButton.addEventListener('click', async () => {
+      const projectId = projectIdInput.value.trim();
+      const file = projectImageInput.files[0];
+      
+      if (!projectId) {
+        showMessage(projectUploadResponse, 'Please enter a project ID', 'error');
+        return;
+      }
+      
+      if (!file) {
+        showMessage(projectUploadResponse, 'Please select an image to upload', 'error');
+        return;
+      }
+      
+      await uploadProjectImage(projectId, file);
+    });
+    
+    // Initialize
+    window.addEventListener('load', async () => {
+      logResponse('Page loaded, checking authentication status...');
+      await checkAuth();
+    });
+  </script>
+</body>
+</html>

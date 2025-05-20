@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Publish All Service Requests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #e1e1e1;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+        h1 {
+            color: #2b6cb0;
+            margin-top: 0;
+            border-bottom: 2px solid #edf2f7;
+            padding-bottom: 10px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #10B981;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #059669;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        .success {
+            background-color: #d1fae5;
+            color: #064e3b;
+            border: 1px solid #a7f3d0;
+        }
+        .error {
+            background-color: #fee2e2;
+            color: #7f1d1d;
+            border: 1px solid #fecaca;
+        }
+        .info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e0f2fe;
+            border-radius: 6px;
+            color: #0c4a6e;
+            border: 1px solid #bae6fd;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .details {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th {
+            background-color: #f9fafb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Artisans Ghana - Admin Tools</h1>
+        
+        <div class="info">
+            <strong>What does this do?</strong> 
+            <p>This tool will publish all pending and approved service requests to the bidding platform. Service providers will be notified about new requests matching their service type.</p>
+        </div>
+        
+        <button id="publishButton" class="button">
+            <span id="loadingIcon" class="loading hidden"></span>
+            <span id="buttonText">Publish All Service Requests</span>
+        </button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const publishButton = document.getElementById('publishButton');
+            const resultDiv = document.getElementById('result');
+            const loadingIcon = document.getElementById('loadingIcon');
+            const buttonText = document.getElementById('buttonText');
+            
+            publishButton.addEventListener('click', async function() {
+                // Show loading state
+                loadingIcon.classList.remove('hidden');
+                buttonText.textContent = 'Publishing...';
+                publishButton.disabled = true;
+                resultDiv.style.display = 'none';
+                
+                try {
+                    // Call the direct endpoint
+                    const response = await fetch('/api/direct-publish-all-requests');
+                    const data = await response.json();
+                    
+                    // Show results
+                    resultDiv.style.display = 'block';
+                    
+                    if (data.success) {
+                        resultDiv.className = 'success';
+                        let resultHTML = `<strong>Success!</strong> ${data.message}`;
+                        
+                        if (data.published > 0 || data.skipped > 0 || data.errors > 0) {
+                            resultHTML += `
+                                <div class="details">
+                                    <table>
+                                        <tr>
+                                            <th>Published</th>
+                                            <th>Skipped</th>
+                                            <th>Failed</th>
+                                            <th>Notifications</th>
+                                        </tr>
+                                        <tr>
+                                            <td>${data.published}</td>
+                                            <td>${data.skipped}</td>
+                                            <td>${data.errors}</td>
+                                            <td>${data.notificationsSent || 0}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            `;
+                        }
+                        
+                        resultDiv.innerHTML = resultHTML;
+                    } else {
+                        resultDiv.className = 'error';
+                        resultDiv.innerHTML = `<strong>Error:</strong> ${data.message}`;
+                    }
+                } catch (error) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.className = 'error';
+                    resultDiv.textContent = `Error: ${error.message}`;
+                } finally {
+                    // Reset button state
+                    loadingIcon.classList.add('hidden');
+                    buttonText.textContent = 'Publish All Service Requests';
+                    publishButton.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
